@@ -75,17 +75,63 @@ class Pawn(Piece):
     def __init__(self, color, startPos, board):
         super().__init__(color, startPos, board)
         self.pointVal = 1
-        self.passant_able = False
+        self.firstMove = True
+        if self.color == "white":
+            self.directions = [
+                    (-1, 0) #up
+                    ] # need to multiply by -1 if black (pawns move down internally instead)
+            self.attackDir = [(-1, -1), (-1, 1)]
+        else:
+            self.directions = [
+                    (1, 0) #down
+            ]
+            self.attackDir = [(1, -1), (1, 1)]
     def get_valid_moves(self):
-        pass
-        #return list of valid moves
+        validMoves = set()
+        row, col = self.getPos()
+        for dr, dc in self.directions:
+            r, c = row + dr, col + dc
+            while(0 <= r < self.board.getRow() and 0 <= c < self.board.getCol()):
+                piece = self.board.getPiece((r,c))
+                if piece is None:
+                    validMoves.add((r,c))
+                """else:
+                    if piece.getColor() != self.getColor():
+                        validMoves.add((r,c))
+                    break""" # not for a pawn
+                if self.firstMove:
+                    validMoves.add((r+dr,c))
+                if not self.sliding:
+                    break
+                r += dr
+                c += dc
+        for move in validMoves.copy():
+            if self.does_move_leave_king_in_check(move):
+                validMoves.remove(move)
+        attackSquares = self.get_attack_squares()
+        for square in attackSquares:
+            if self.board.getPiece(square) is not None:
+                validMoves.add(square)
+        return validMoves
+    def get_attack_squares(self): #used because in example of a pinned bishop, it can still block spaces of opposing king
+        attacked = set()
+        row, col = self.position
+        for dr, dc in self.attackDir:
+            r, c = row + dr, col + dc
+            while (0 <= r < self.board.getRow() and 0 <= c < self.board.getCol()):
+                attacked.add((r, c))
+                if self.board.getPiece((r, c)) is not None: #stop at first occupied square regardless of color owner
+                    break
+                if not self.sliding:
+                    break
+                r += dr
+                c += dc
+        return attacked  
     def move(self, newPos):
-        if newPos in self.get_valid_moves():
-            self.position = newPos
-            self.board.board[newPos[0]][newPos[1]] = self
-            return newPos
-        return -1
-        #return new position
+        move = super().move(newPos)
+        if move != -1:
+            self.firstMove = False
+        return move
 
 class Bishop(Piece):
     def __init__(self, color, startPos, board):
@@ -229,7 +275,7 @@ class King(Piece):
         self.hasMoved = True
 
 
-        
+
         if is_castling:
             if newPos[1] > old_col:
                 for c in range(old_col+1, self.board.getCol()):
