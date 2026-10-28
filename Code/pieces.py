@@ -1,4 +1,5 @@
 from board import Board
+from typing import Literal
 class Piece:
     def __init__(self, color: str, startPos: tuple, board: Board):
         self.color = color
@@ -12,17 +13,17 @@ class Piece:
     def getPos(self):
         return self.position
     def get_valid_moves(self):
-        validMoves = []
+        validMoves = set()
         row, col = self.getPos()
         for dr, dc in self.directions:
             r, c = row + dr, col + dc
             while(0 <= r < self.board.getRow() and 0 <= c < self.board.getCol()):
                 piece = self.board.getPiece((r,c))
                 if piece is None:
-                    validMoves.append((r,c))
+                    validMoves.add((r,c))
                 else:
                     if piece.getColor() != self.getColor():
-                        validMoves.append((r,c))
+                        validMoves.add((r,c))
                     break
                 if not self.sliding:
                     break
@@ -107,8 +108,11 @@ class Rook(Piece):
                     ]
         self.sliding = True
     def move(self, newPos):
-        self.hasMoved = True
-        return super().move(newPos)
+        move = super().move(newPos)
+        if move != -1:
+            self.hasMoved = True
+        return move
+
 
 
 class Queen(Piece):
@@ -143,13 +147,47 @@ class King(Piece):
                     (0, 1) #right
                     ]
         self.sliding = False
-    def can_castle_with_rook_in_col(self, rookCol):
+    def can_castle_with_rook_in_col(self, rookCol, left_right: Literal[-1, 1]):
         row, col = self.getPos()
         if self.hasMoved:
             return False
         rook = self.board.getPiece((row, rookCol))
-        if not isinstance(rook, Rook) and (rook.getColor() != self.getColor() or rook.hasMoved):
+        if not isinstance(rook, Rook):
             return False
+        if (rook.getColor() != self.getColor() or rook.hasMoved):
+            return False
+        for c in range(col + left_right, rookCol, left_right): #checks squares between king and rook must be empty
+            if not self.board.empty((row, c)):
+                return False
+        all_enemy_attacks = set()
+        for r in range(self.board.getRow()):
+            for c in range(self.board.getCol()):
+                piece = self.board.getPiece((r,c))
+                if piece is not None and piece.getColor() != self.getColor():
+                    all_enemy_attacks.update(piece.get_attack_squares())
+        for c in range(3): #checks that the king does not move through check
+            if (row, col+(c*left_right)) in all_enemy_attacks:
+                return False
+        return True
+    def get_valid_moves(self):
+        moves = super().get_valid_moves()
+        all_enemy_attacks = set()
+        for r in range(self.board.getRow()):
+            for c in range(self.board.getCol()):
+                piece = self.board.getPiece((r,c))
+                if piece is not None and piece.getColor() != self.getColor():
+                    all_enemy_attacks.update(piece.get_attack_squares())
+        for elem in all_enemy_attacks:
+            if elem in moves:
+                moves.remove(elem)
+        if self.can_castle_with_rook_in_col(7, 1):
+            moves.add(self.getPos()[0], 6)
+        if self.can_castle_with_rook_in_col(0, -1):
+            moves.add(self.getPos()[0], 2)
+        return moves
+        
     def move(self, newPos):
-        self.hasMoved = True
-        return super().move(newPos)
+        move = super().move(newPos)
+        if move != -1:
+            self.hasMoved = True
+        return move
