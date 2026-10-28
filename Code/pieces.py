@@ -29,6 +29,9 @@ class Piece:
                     break
                 r += dr
                 c += dc
+        for move in validMoves.copy():
+            if self.does_move_leave_king_in_check(move):
+                validMoves.remove(move)
         return validMoves
     def move(self, newPos):
         if newPos in self.get_valid_moves():
@@ -38,13 +41,13 @@ class Piece:
             return newPos
         return -1
         #return new position
-    def get_attack_squares(self):
-        attacked = []
+    def get_attack_squares(self): #used because in example of a pinned bishop, it can still block spaces of opposing king
+        attacked = set()
         row, col = self.position
         for dr, dc in self.directions:
             r, c = row + dr, col + dc
             while (0 <= r < self.board.getRow() and 0 <= c < self.board.getCol()):
-                attacked.append((r, c))
+                attacked.add((r, c))
                 if self.board.getPiece((r, c)) is not None: #stop at first occupied square regardless of color owner
                     break
                 if not self.sliding:
@@ -52,6 +55,22 @@ class Piece:
                 r += dr
                 c += dc
         return attacked
+    def does_move_leave_king_in_check(self, newPos: tuple):
+        old_pos = self.getPos()
+        movedSquare = self.board.getPiece(newPos)
+        self.board.board[old_pos[0]][old_pos[1]] = None
+        self.position = newPos
+        self.board.board[newPos[0]][newPos[1]] = self
+
+        in_check = self.board.is_color_in_check(self.getColor())
+
+        self.board.board[newPos[0]][newPos[1]] = movedSquare
+        self.board.board[old_pos[0]][old_pos[1]] = self
+        self.position = old_pos
+        return in_check
+
+
+    
 class Pawn(Piece):
     def __init__(self, color, startPos, board):
         super().__init__(color, startPos, board)
@@ -159,14 +178,17 @@ class King(Piece):
         for c in range(col + left_right, rookCol, left_right): #checks squares between king and rook must be empty
             if not self.board.empty((row, c)):
                 return False
+
+        if self.board.is_color_in_check(self.getColor()):
+            return False
         all_enemy_attacks = set()
         for r in range(self.board.getRow()):
             for c in range(self.board.getCol()):
                 piece = self.board.getPiece((r,c))
                 if piece is not None and piece.getColor() != self.getColor():
                     all_enemy_attacks.update(piece.get_attack_squares())
-        for c in range(3): #checks that the king does not move through check
-            if (row, col+(c*left_right)) in all_enemy_attacks:
+        for step in range(1, 2): #checks that the king does not move through check
+            if (row, col+(step*left_right)) in all_enemy_attacks:
                 return False
         return True
     def get_valid_moves(self):
@@ -180,14 +202,54 @@ class King(Piece):
         for elem in all_enemy_attacks:
             if elem in moves:
                 moves.remove(elem)
-        if self.can_castle_with_rook_in_col(7, 1):
-            moves.add(self.getPos()[0], 6)
-        if self.can_castle_with_rook_in_col(0, -1):
-            moves.add(self.getPos()[0], 2)
+        rooksPos = []
+        for r in range(self.board.getRow()):
+            for c in range(self.board.getCol()):
+                piece = self.board.getPiece((r,c))
+                if isinstance(piece, Rook) and piece.getColor() == self.getColor():
+                    rooksPos.append(piece.getPos())
+        for elem in rooksPos:
+            l_or_r = 0
+            if elem[1] > self.getPos()[1]:
+                l_or_r = 1
+            elif elem[1] < self.getPos()[1]:
+                l_or_r = -1
+            if self.can_castle_with_rook_in_col(elem[1], l_or_r):
+                moves.add((self.getPos()[0], self.getPos()[1]+(2*l_or_r)))
         return moves
         
     def move(self, newPos):
+        old_row, old_col = self.getPos()
+        is_castling = False
+        if newPos[0] == old_row and abs(newPos[1] - old_col) == 2:
+            is_castling = True
         move = super().move(newPos)
-        if move != -1:
-            self.hasMoved = True
+        if move == -1:
+            return -1
+        self.hasMoved = True
+
+
+        
+        if is_castling:
+            if newPos[1] > old_col:
+                for c in range(old_col+1, self.board.getCol()):
+                    piece = self.board.getPiece((old_row, c))
+                    if isinstance(piece, Rook):
+                        rook_old_col = c #if there are multiple rooks in a row, we castle with the first rook at least 2 spaces away
+                        break
+                rook_new_col = old_col + 1
+            else:
+                for c in range(old_col - 1, -1, -1):
+                    piece = self.board.getPiece((old_row, c))
+                    if isinstance(piece, Rook):
+                        rook_old_col = c #if there are multiple rooks in a row, we castle with the first rook at least 2 spaces away
+                        break
+                rook_new_col = old_col - 1
+            if rook_old_col is not None:
+                rook = self.board.getPiece((old_row, rook_old_col))
+                if rook:
+                    self.board.board[old_row][rook_old_col] = None
+                    rook.position = (old_row, rook_new_col)
+                    self.board.board[old_row][rook_new_col] = rook
+                    rook.hasMoved = True
         return move
