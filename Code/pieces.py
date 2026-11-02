@@ -5,6 +5,7 @@ class Piece:
         self.color = color
         self.position = startPos
         self.board = board
+        self.pointVal = -1
         self.board.board[startPos[0]][startPos[1]] = self
         self.directions = []  # this can be used to mutate the movement capabilities of pieces
         self.attackDir = self.directions.copy()
@@ -141,6 +142,7 @@ class Pawn(Piece):
 
 class Bishop(Piece):
     def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
         self.pointVal = 3
         self.directions = [
                     (-1, -1), #upleft
@@ -149,12 +151,13 @@ class Bishop(Piece):
                     (1, 1) #downright
                     ]
         self.sliding = True
-        super().__init__(color, startPos, board)
+        self.attackDir = self.directions.copy()
 
 
 
 class Knight(Piece):
     def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
         self.pointVal = 3
         self.directions = [
                     (-2, -1), (-2, 1), #up 2
@@ -163,11 +166,11 @@ class Knight(Piece):
                     (2, -1), (2, 1) #downright
                     ]
         self.sliding = False
-        super().__init__(color, startPos, board)
-
+        self.attackDir = self.directions.copy()
 
 class Rook(Piece):
     def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
         self.pointVal = 5
         self.hasMoved = False #if rook moves then set to true permanent
         self.directions = [
@@ -177,7 +180,7 @@ class Rook(Piece):
                     (0, 1) #right
                     ]
         self.sliding = True
-        super().__init__(color, startPos, board)
+        self.attackDir = self.directions.copy()
     def move(self, newPos):
         move = super().move(newPos)
         if move != -1:
@@ -188,6 +191,7 @@ class Rook(Piece):
 
 class Queen(Piece):
     def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
         self.pointVal = 9
         self.directions = [
                     (-1, -1), #upleft
@@ -200,10 +204,11 @@ class Queen(Piece):
                     (0, 1) #right
                     ]
         self.sliding = True
-        super().__init__(color, startPos, board)
+        self.attackDir = self.directions.copy()
 
 class King(Piece):
     def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
         self.pointVal = float("inf")
         self.hasMoved = False #if king moves set to true (permanent), while in check do not allow, and do not allow a castle that would cross a check
         self.directions = [
@@ -217,7 +222,7 @@ class King(Piece):
                     (0, 1) #right
                     ]
         self.sliding = False
-        super().__init__(color, startPos, board)
+        self.attackDir = self.directions.copy()
 
 
 
