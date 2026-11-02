@@ -7,6 +7,7 @@ class Piece:
         self.board = board
         self.board.board[startPos[0]][startPos[1]] = self
         self.directions = []  # this can be used to mutate the movement capabilities of pieces
+        self.attackDir = self.directions.copy()
         self.sliding = False
     def getColor(self):
         return self.color
@@ -44,7 +45,7 @@ class Piece:
     def get_attack_squares(self): #used because in example of a pinned bishop, it can still block spaces of opposing king
         attacked = set()
         row, col = self.position
-        for dr, dc in self.directions:
+        for dr, dc in self.attackDir:
             r, c = row + dr, col + dc
             while (0 <= r < self.board.getRow() and 0 <= c < self.board.getCol()):
                 attacked.add((r, c))
@@ -99,8 +100,10 @@ class Pawn(Piece):
                     if piece.getColor() != self.getColor():
                         validMoves.add((r,c))
                     break""" # not for a pawn
-                if self.firstMove:
-                    validMoves.add((r+dr,c))
+                doubleMove = r+dr
+                if(0 <= doubleMove < self.board.getRow()):
+                    if self.firstMove and self.board.getPiece((doubleMove,c)) is None:
+                        validMoves.add((doubleMove,c))
                 if not self.sliding:
                     break
                 r += dr
@@ -113,29 +116,31 @@ class Pawn(Piece):
             if self.board.getPiece(square) is not None:
                 validMoves.add(square)
         return validMoves
-    def get_attack_squares(self): #used because in example of a pinned bishop, it can still block spaces of opposing king
-        attacked = set()
-        row, col = self.position
-        for dr, dc in self.attackDir:
-            r, c = row + dr, col + dc
-            while (0 <= r < self.board.getRow() and 0 <= c < self.board.getCol()):
-                attacked.add((r, c))
-                if self.board.getPiece((r, c)) is not None: #stop at first occupied square regardless of color owner
-                    break
-                if not self.sliding:
-                    break
-                r += dr
-                c += dc
-        return attacked  
     def move(self, newPos):
         move = super().move(newPos)
-        if move != -1:
-            self.firstMove = False
+        if move == -1:
+            return -1
+        self.firstMove = False
+        if (move[0] == self.board.getRow() - 1 and self.getColor() == "black") or (move[0] == 0 and self.getColor() == "white"):
+            self.promotion()
         return move
+    def promotion(self):
+        choices = {
+            "bishop": Bishop,
+            "knight": Knight,
+            "rook": Rook,
+            "queen": Queen
+        }
+        choice = input("Promote to: (bishop, knight, rook, queen): ").lower()
+        while choice not in choices:
+            print("Invalid choice, try again.")
+            choice = input("Promote to: (bishop, knight, rook, queen): ").lower()
+        newPiece = choices[choice](self.color, self.position, self.board) #due to our init we will automatically replace our pawn
+        return newPiece
+        
 
 class Bishop(Piece):
     def __init__(self, color, startPos, board):
-        super().__init__(color, startPos, board)
         self.pointVal = 3
         self.directions = [
                     (-1, -1), #upleft
@@ -144,12 +149,12 @@ class Bishop(Piece):
                     (1, 1) #downright
                     ]
         self.sliding = True
+        super().__init__(color, startPos, board)
 
 
 
 class Knight(Piece):
     def __init__(self, color, startPos, board):
-        super().__init__(color, startPos, board)
         self.pointVal = 3
         self.directions = [
                     (-2, -1), (-2, 1), #up 2
@@ -158,11 +163,11 @@ class Knight(Piece):
                     (2, -1), (2, 1) #downright
                     ]
         self.sliding = False
+        super().__init__(color, startPos, board)
 
 
 class Rook(Piece):
     def __init__(self, color, startPos, board):
-        super().__init__(color, startPos, board)
         self.pointVal = 5
         self.hasMoved = False #if rook moves then set to true permanent
         self.directions = [
@@ -172,6 +177,7 @@ class Rook(Piece):
                     (0, 1) #right
                     ]
         self.sliding = True
+        super().__init__(color, startPos, board)
     def move(self, newPos):
         move = super().move(newPos)
         if move != -1:
@@ -182,7 +188,6 @@ class Rook(Piece):
 
 class Queen(Piece):
     def __init__(self, color, startPos, board):
-        super().__init__(color, startPos, board)
         self.pointVal = 9
         self.directions = [
                     (-1, -1), #upleft
@@ -195,10 +200,10 @@ class Queen(Piece):
                     (0, 1) #right
                     ]
         self.sliding = True
+        super().__init__(color, startPos, board)
 
 class King(Piece):
     def __init__(self, color, startPos, board):
-        super().__init__(color, startPos, board)
         self.pointVal = float("inf")
         self.hasMoved = False #if king moves set to true (permanent), while in check do not allow, and do not allow a castle that would cross a check
         self.directions = [
@@ -212,6 +217,11 @@ class King(Piece):
                     (0, 1) #right
                     ]
         self.sliding = False
+        super().__init__(color, startPos, board)
+
+
+
+
     def can_castle_with_rook_in_col(self, rookCol, left_right: Literal[-1, 1]):
         row, col = self.getPos()
         if self.hasMoved:
@@ -237,6 +247,10 @@ class King(Piece):
             if (row, col+(step*left_right)) in all_enemy_attacks:
                 return False
         return True
+
+
+
+    
     def get_valid_moves(self):
         moves = super().get_valid_moves()
         all_enemy_attacks = set()
