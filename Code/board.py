@@ -42,3 +42,24 @@ class Board:
                     if king_pos in piece.get_attack_squares():
                         return True
         return False
+    def has_any_legal_move(self, color):
+        for r in range(self.getRow()):
+            for c in range(self.getCol()):
+                piece = self.getPiece((r,c))
+                if piece is not None and piece.getColor() == color:
+                    if len(piece.get_valid_moves()) > 0:
+                        return True
+        return False
+    def is_checkmate(self, color):
+        return self.is_color_in_check(color) and not self.has_any_legal_move(color)
+    def is_stalemate(self, color):
+        return not self.is_color_in_check(color) and not self.has_any_legal_move(color)
+    def get_board_state(self, color):
+        if self.is_checkmate(color):
+            return "checkmate"
+        elif self.is_stalemate(color):
+            return "stalemate"
+        elif self.is_color_in_check(color):
+            return "check"
+        else:
+            return "normal"
