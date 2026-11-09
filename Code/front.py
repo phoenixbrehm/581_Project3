@@ -34,7 +34,7 @@ def main():
     pygame.init()
     screen = pygame.display.set_mode(SCREEN_SIZE, pygame.SCALED)
     pygame.display.set_caption("Chess")
-    clock = pygame.Clock()
+    clock = pygame.time.Clock()
     running = True
 
 
