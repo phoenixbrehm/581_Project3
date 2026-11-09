@@ -8,12 +8,34 @@ class Board:
             for j in range(self.columns):
                 row.append(None)
             self.board.append(row)
+    def in_bounds(self, pos: turple):
+            val, num = pos
+            return 0 <= val < self.rows and 0 <= num < self.columns
     def empty(self, pos: tuple):
-        if self.board[pos[0]][pos[1]] == None:
-            return True
-        return False
+        if not self.in_bounds(pos):
+            return False
+        return self.board[pos[0]] [pos[1]] is None
     def getPiece(self, pos: tuple):
+        if not self.in_bounds(pos): 
+            return None
         return self.board[pos[0]][pos[1]]
+    def setPiece(self, pos: tuple, piece):
+        if not self.in_bounds(pos):
+            raise ValueError(f"{pos} off the board")
+        self.board[pos[0]][pos[1]] = piece
+    def removePiece(self, pos: tuple):
+        piece = self.getPiece(pos)
+        self.setPiece(pos, None)
+        return piece
+    def movePiece(self, start: tuple, end: tuple):
+        piece = self.getPiece(start)
+        if piece is None:
+            raise ValueError(f"No piece at {start}")
+            caught = self.get_Piece(end)
+            self.setPiece(end, piece)
+            self.setPiece(start, None)
+            piece.setPos(end)
+            return caught
     def getRow(self):
         return self.rows
     def getCol(self):
@@ -21,8 +43,13 @@ class Board:
     def printBoard(self):
         for i in range(self.getRow()):
             for j in range(self.getCol()):
-                print(type(self.board[i][j]), end=" ")
+                piece = self.board[i][j]
+                if piece is None:
+                    print(" .", end=" ")
+                else: 
+                    print(type(piece).__name__[:2], end=" ")
             print("")
+          
     def is_color_in_check(self, color):
         from pieces import King
         king = None
@@ -34,6 +61,9 @@ class Board:
                     break
             if king is not None:
                 break
+            if king is None:
+                return False
+            king_pos = king.getPos()
         king_pos = king.getPos()
         for r in range(self.getRow()):
             for c in range(self.getCol()):
@@ -63,3 +93,4 @@ class Board:
             return "check"
         else:
             return "normal"
+
