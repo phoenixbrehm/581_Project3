@@ -1,0 +1,1 @@
+Maha Jornaz used ChatGPT version GPT-5.6 Luna to assist with the printBoard function in board.py.
