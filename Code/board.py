@@ -3,11 +3,30 @@ class Board:
         self.rows = rows
         self.columns = col
         self.board = []
+        # This sets the turn to white at the start of the game.
+        self.turn = "white"
+        
         for i in range(self.rows):
             row = []
             for j in range(self.columns):
                 row.append(None)
             self.board.append(row)
+    
+    # This function returns the current turn of the game, either black or white.
+    def get_turn(self):
+        return self.turn
+    
+    # This function switches the turn of the game from white to black and vice versa.
+    def switch_turns(self):
+        if self.turn == "white":
+            self.turn = "black"
+        else:
+            self.turn = "white"
+    
+    # This function prints whose turn it is.
+    def print_turn(self):
+        print(f"It is {self.turn}'s turn.")
+            
     def in_bounds(self, pos: tuple):
             val, num = pos
             return 0 <= val < self.rows and 0 <= num < self.columns
