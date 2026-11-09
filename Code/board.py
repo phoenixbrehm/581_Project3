@@ -8,7 +8,7 @@ class Board:
             for j in range(self.columns):
                 row.append(None)
             self.board.append(row)
-    def in_bounds(self, pos: turple):
+    def in_bounds(self, pos: tuple):
             val, num = pos
             return 0 <= val < self.rows and 0 <= num < self.columns
     def empty(self, pos: tuple):
@@ -27,15 +27,15 @@ class Board:
         piece = self.getPiece(pos)
         self.setPiece(pos, None)
         return piece
-    def movePiece(self, start: tuple, end: tuple):
+    """def movePiece(self, start: tuple, end: tuple):
         piece = self.getPiece(start)
         if piece is None:
             raise ValueError(f"No piece at {start}")
-            caught = self.get_Piece(end)
-            self.setPiece(end, piece)
-            self.setPiece(start, None)
-            piece.setPos(end)
-            return caught
+        caught = self.getPiece(end)
+        self.setPiece(end, piece)
+        self.setPiece(start, None)
+        piece.setPos(end)
+        return caught"""
     def getRow(self):
         return self.rows
     def getCol(self):
