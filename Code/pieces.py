@@ -39,9 +39,10 @@ class Piece:
         if newPos in self.get_valid_moves():
             self.board.board[self.position[0]][self.position[1]] = None
             self.position = newPos
+            oldPiece = self.board.board[newPos[0]][newPos[1]]
             self.board.board[newPos[0]][newPos[1]] = self
-            return newPos
-        return -1
+            return newPos, oldPiece
+        return -1, None
         #return new position
     def get_attack_squares(self): #used because in example of a pinned bishop, it can still block spaces of opposing king
         attacked = set()
@@ -78,6 +79,8 @@ class Pawn(Piece):
         super().__init__(color, startPos, board)
         self.pointVal = 1
         self.firstMove = True
+        self.firstMoveTurnNo = -1
+        self.firstMoveDoubleMove = False
         if self.color == "white":
             self.directions = [
                     (-1, 0) #up
@@ -103,28 +106,51 @@ class Pawn(Piece):
                     break""" # not for a pawn
                 doubleMove = r+dr
                 if(0 <= doubleMove < self.board.getRow()):
-                    if self.firstMove and self.board.getPiece((doubleMove,c)) is None:
+                    if self.firstMove and self.board.getPiece((doubleMove,c)) is None and self.board.getPiece((r,c)) is None:
                         validMoves.add((doubleMove,c))
                 if not self.sliding:
                     break
                 r += dr
                 c += dc
+        attackSquares = self.get_attack_squares()
+        leftPiece = None
+        rightPiece = None
+        if col > 0:
+            leftPiece = self.board.getPiece((row, col - 1))
+        if col < self.board.getCol() - 1:
+            rightPiece = self.board.getPiece((row, col + 1))
+
+        
+        for square in attackSquares:
+            if(self.board.getPiece(square) is not None):
+                validMoves.add(square)
+                continue
+            if square[1] < self.position[1]: #left attack check for passent
+                if(isinstance(leftPiece, Pawn) and leftPiece.firstMoveTurnNo == self.board.get_turn_count()-1 and leftPiece.getColor() != self.getColor() and leftPiece.firstMoveDoubleMove):
+                    validMoves.add(square)
+            elif square[1] > self.position[1]: #right attack check for passent
+                if(isinstance(rightPiece, Pawn) and rightPiece.firstMoveTurnNo == self.board.get_turn_count()-1 and rightPiece.getColor() != self.getColor() and rightPiece.firstMoveDoubleMove):
+                    validMoves.add(square)
         for move in validMoves.copy():
             if self.does_move_leave_king_in_check(move):
                 validMoves.remove(move)
-        attackSquares = self.get_attack_squares()
-        for square in attackSquares:
-            if self.board.getPiece(square) is not None:
-                validMoves.add(square)
         return validMoves
     def move(self, newPos):
-        move = super().move(newPos)
+        oldPos = self.position
+        move, takenpiece = super().move(newPos)
         if move == -1:
-            return -1
-        self.firstMove = False
+            return -1, None
+        if self.firstMove:
+            if abs(oldPos[0] - newPos[0]) == 2:
+                self.firstMoveDoubleMove = True
+            self.firstMove = False
+            self.firstMoveTurnNo = self.board.get_turn_count()
+        if takenpiece is None and oldPos[1] != newPos[1]: #this means we did en passent
+            takenpiece = self.board.getPiece((self.position[0]-self.attackDir[0][0], self.position[1])) #go back/fwd to the peice that we moved behind since self.pos is already updated
+            self.board.removePiece(takenpiece.position)
         if (move[0] == self.board.getRow() - 1 and self.getColor() == "black") or (move[0] == 0 and self.getColor() == "white"):
             self.promotion()
-        return move
+        return move, takenpiece
     def promotion(self):
         choices = {
             "bishop": Bishop,
@@ -138,6 +164,33 @@ class Pawn(Piece):
             choice = input("Promote to: (bishop, knight, rook, queen): ").lower()
         newPiece = choices[choice](self.color, self.position, self.board) #due to our init we will automatically replace our pawn
         return newPiece
+    def does_move_leave_king_in_check(self, newPos: tuple):
+        old_pos = self.getPos()
+        movedSquare = self.board.getPiece(newPos)
+        if movedSquare is None and old_pos[1] != newPos[1]:
+            self.board.board[old_pos[0]][old_pos[1]] = None
+            self.position = newPos
+            self.board.board[newPos[0]][newPos[1]] = self
+            takenpiece = self.board.board[self.position[0]-self.attackDir[0][0]][self.position[1]]
+            self.board.board[self.position[0]-self.attackDir[0][0]][self.position[1]] = None #takenpiece has enpassent piece
+
+            in_check = self.board.is_color_in_check(self.getColor())
+
+            self.board.board[newPos[0]][newPos[1]] = movedSquare
+            self.board.board[old_pos[0]][old_pos[1]] = self
+            self.board.board[self.position[0]-self.attackDir[0][0]][self.position[1]] = takenpiece
+            self.position = old_pos
+        else:
+            self.board.board[old_pos[0]][old_pos[1]] = None
+            self.position = newPos
+            self.board.board[newPos[0]][newPos[1]] = self
+
+            in_check = self.board.is_color_in_check(self.getColor())
+
+            self.board.board[newPos[0]][newPos[1]] = movedSquare
+            self.board.board[old_pos[0]][old_pos[1]] = self
+            self.position = old_pos
+        return in_check
         
 
 class Bishop(Piece):
@@ -182,10 +235,10 @@ class Rook(Piece):
         self.sliding = True
         self.attackDir = self.directions.copy()
     def move(self, newPos):
-        move = super().move(newPos)
+        move, takenpiece = super().move(newPos)
         if move != -1:
             self.hasMoved = True
-        return move
+        return move, takenpiece
 
 
 
@@ -248,7 +301,7 @@ class King(Piece):
                 piece = self.board.getPiece((r,c))
                 if piece is not None and piece.getColor() != self.getColor():
                     all_enemy_attacks.update(piece.get_attack_squares())
-        for step in range(1, 2): #checks that the king does not move through check
+        for step in range(1, 3): #checks that the king does not move through check
             if (row, col+(step*left_right)) in all_enemy_attacks:
                 return False
         return True
@@ -288,25 +341,26 @@ class King(Piece):
         is_castling = False
         if newPos[0] == old_row and abs(newPos[1] - old_col) == 2:
             is_castling = True
-        move = super().move(newPos)
+        move, takenpiece = super().move(newPos)
         if move == -1:
-            return -1
+            return -1, None
         self.hasMoved = True
 
 
 
         if is_castling:
+            rook_old_col = None
             if newPos[1] > old_col:
                 for c in range(old_col+1, self.board.getCol()):
                     piece = self.board.getPiece((old_row, c))
-                    if isinstance(piece, Rook):
+                    if isinstance(piece, Rook) and not piece.hasMoved:
                         rook_old_col = c #if there are multiple rooks in a row, we castle with the first rook at least 2 spaces away
                         break
                 rook_new_col = old_col + 1
             else:
-                for c in range(old_col - 1, -1, -1):
+                for c in range(old_col-1, -1, -1):
                     piece = self.board.getPiece((old_row, c))
-                    if isinstance(piece, Rook):
+                    if isinstance(piece, Rook) and not piece.hasMoved:
                         rook_old_col = c #if there are multiple rooks in a row, we castle with the first rook at least 2 spaces away
                         break
                 rook_new_col = old_col - 1
@@ -317,4 +371,4 @@ class King(Piece):
                     rook.position = (old_row, rook_new_col)
                     self.board.board[old_row][rook_new_col] = rook
                     rook.hasMoved = True
-        return move
+        return move, takenpiece
