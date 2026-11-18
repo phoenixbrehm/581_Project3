@@ -46,6 +46,8 @@ class Board:
         if not self.in_bounds(pos):
             raise ValueError(f"{pos} off the board")
         self.board[pos[0]][pos[1]] = piece
+        if piece is not None:
+            piece.position = pos
     def removePiece(self, pos: tuple):
         piece = self.getPiece(pos)
         self.setPiece(pos, None)
@@ -84,9 +86,8 @@ class Board:
                     break
             if king is not None:
                 break
-            if king is None:
-                return False
-            king_pos = king.getPos()
+        if king is None:
+            return False
         king_pos = king.getPos()
         for r in range(self.getRow()):
             for c in range(self.getCol()):
