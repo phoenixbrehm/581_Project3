@@ -10,6 +10,7 @@ class Piece:
         self.directions = []  # this can be used to mutate the movement capabilities of pieces
         self.attackDir = self.directions.copy()
         self.sliding = False
+        self.is_capturable = True
     def getColor(self):
         return self.color
     def getPos(self):
@@ -24,7 +25,7 @@ class Piece:
                 if piece is None:
                     validMoves.add((r,c))
                 else:
-                    if piece.getColor() != self.getColor():
+                    if piece.getColor() != self.getColor() and piece.capturable():
                         validMoves.add((r,c))
                     break
                 if not self.sliding:
@@ -71,7 +72,8 @@ class Piece:
         self.board.board[old_pos[0]][old_pos[1]] = self
         self.position = old_pos
         return in_check
-
+    def capturable(self):
+        return self.is_capturable
 
     
 class Pawn(Piece):
@@ -122,14 +124,16 @@ class Pawn(Piece):
 
         
         for square in attackSquares:
+
             if(self.board.getPiece(square) is not None):
-                validMoves.add(square)
+                if(self.board.getPiece(square).getColor() != self.getColor() and self.board.getPiece(square).capturable()):
+                    validMoves.add(square)
                 continue
             if square[1] < self.position[1]: #left attack check for passent
-                if(isinstance(leftPiece, Pawn) and leftPiece.firstMoveTurnNo == self.board.get_turn_count()-1 and leftPiece.getColor() != self.getColor() and leftPiece.firstMoveDoubleMove):
+                if(isinstance(leftPiece, Pawn) and leftPiece.firstMoveTurnNo == self.board.get_turn_count()-1 and leftPiece.getColor() != self.getColor() and leftPiece.firstMoveDoubleMove and leftPiece.capturable()):
                     validMoves.add(square)
             elif square[1] > self.position[1]: #right attack check for passent
-                if(isinstance(rightPiece, Pawn) and rightPiece.firstMoveTurnNo == self.board.get_turn_count()-1 and rightPiece.getColor() != self.getColor() and rightPiece.firstMoveDoubleMove):
+                if(isinstance(rightPiece, Pawn) and rightPiece.firstMoveTurnNo == self.board.get_turn_count()-1 and rightPiece.getColor() != self.getColor() and rightPiece.firstMoveDoubleMove and rightPiece.capturable()):
                     validMoves.add(square)
         for move in validMoves.copy():
             if self.does_move_leave_king_in_check(move):
@@ -372,3 +376,135 @@ class King(Piece):
                     self.board.board[old_row][rook_new_col] = rook
                     rook.hasMoved = True
         return move, takenpiece
+
+
+class Wall(Piece): # a piece that cannot move nor can be taken
+    def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
+        self.attackDir = []
+        self.directions = []
+        self.sliding = False
+        self.pointVal = 2
+        self.is_capturable = False
+class Checkers(Piece):
+    def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
+        self.pointVal = 2
+        self.sliding = False
+        if self.color == "white":
+            self.directions = [
+                    (-1, -1), #up left
+                    (-1, 1)
+                    ]
+            self.attackDir = [(-1, -1), (-1, 1)]
+        else:
+            self.directions = [
+                    (1, -1), #down
+                    (1, 1)
+            ]
+            self.attackDir = [(1, -1), (1, 1)]
+            
+        #attack dir checks if something is in attack range
+    def get_valid_moves(self):
+        capture_moves = self.get_capture_moves()
+        if capture_moves:
+            return capture_moves #force captures if the piece can and player wants to move the piece
+        validMoves = set()
+        row, col = self.getPos()
+        for dr, dc in self.directions:
+            r, c = row + dr, col + dc
+            while(0 <= r < self.board.getRow() and 0 <= c < self.board.getCol()):
+                piece = self.board.getPiece((r,c))
+                if piece is None:
+                    validMoves.add((r,c))
+                if not self.sliding:
+                    break
+                r += dr
+                c += dc
+        for move in validMoves.copy():
+            if self.does_move_leave_king_in_check(move):
+                validMoves.remove(move)
+        return validMoves
+
+    def get_capture_moves(self):
+        captureMoves = set()
+        row, col = self.getPos()
+        for dr, dc in self.directions:
+            opponentPos = (row + dr, col + dc)
+            landingPos = (row + 2*dr, col + 2*dc)
+            if not (0 <= landingPos[0] < self.board.getRow()
+                    and 0 <= landingPos[1] < self.board.getCol()):
+                continue
+            opponent = self.board.getPiece(opponentPos)
+            if (opponent is not None and opponent.getColor() != self.getColor() and opponent.capturable() and self.board.getPiece(landingPos) is None):
+                captureMoves.add(landingPos)
+        for move in captureMoves.copy():
+            if self.does_move_leave_king_in_check(move):
+                captureMoves.remove(move)
+        return captureMoves
+
+    def move(self, newPos):
+        oldPos = self.getPos()
+        move, takenPiece = super().move(newPos)
+        if move == -1:
+            return -1, None
+        if abs(newPos[0] - oldPos[0]) == 2:
+            capturedPos = ((oldPos[0] + newPos[0]) // 2, (oldPos[1] + newPos[1]) // 2)
+            takenPiece = self.board.removePiece(capturedPos)
+        additionalCaptures = self.get_capture_moves()
+        if additionalCaptures: #multijump
+            print("Additional jumps available:")
+            for i, pos in enumerate(additionalCaptures):
+                print(f"{i}: {pos}")
+            print("Enter -1 to end your turn.")
+            #wait for choice between left or right
+            choice = int(input("Choose your next jump: "))
+            if choice != -1:
+                if 0 <= choice < len(additionalCaptures):
+                    nextMove = list(additionalCaptures)[choice]
+
+                    # Recursively execute the next jump
+                    _, nextTakenPiece = self.move(nextMove)
+
+                    # Return the most recently captured piece
+                    return move, takenPiece
+        if (move[0] == self.board.getRow() - 1 and self.getColor() == "black") or (move[0] == 0 and self.getColor() == "white"):
+            self.promotion()
+        return move, takenPiece
+
+    def does_move_leave_king_in_check(self, newPos: tuple):
+        old_pos = self.getPos()
+        movedSquare = self.board.getPiece(newPos)
+        capturedPiece = None
+        capturedPos = None
+        if abs(newPos[0] - old_pos[0]) == 2:
+            capturedPos = ((old_pos[0] + newPos[0]) // 2, (old_pos[1] + newPos[1]) // 2)
+            capturedPiece = self.board.getPiece(capturedPos)
+        if capturedPos is not None:
+            self.board.setPiece(capturedPos, None)
+        self.board.board[old_pos[0]][old_pos[1]] = None
+        self.position = newPos
+        self.board.board[newPos[0]][newPos[1]] = self
+
+        in_check = self.board.is_color_in_check(self.getColor())
+
+        self.board.board[newPos[0]][newPos[1]] = movedSquare
+        self.board.board[old_pos[0]][old_pos[1]] = self
+        self.position = old_pos
+        if capturedPos is not None:
+            self.board.setPiece(capturedPos, capturedPiece)
+        return in_check
+    def promotion(self):
+        newPiece = KingChecker(self.color, self.position, self.board) #due to our init we will automatically replace our pawn
+        return newPiece
+class KingChecker(Checkers):
+    def __init__(self, color, startPos, board):
+        super().__init__(color, startPos, board)
+        self.pointVal = 4
+        self.directions = [
+                    (-1, -1),
+                    (-1, 1),
+                    (1, -1),
+                    (1, 1)
+                    ]
+        self.attackDir = self.directions.copy()
