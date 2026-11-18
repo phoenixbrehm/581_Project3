@@ -1,6 +1,10 @@
 from board import Board
 from pieces import *
 from front import game
+import random
+
+def create_budget(low=8, high=39):
+    return random.randit(low, high)
 
 def setup_normal_board(board):
     back_row = [Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook]
