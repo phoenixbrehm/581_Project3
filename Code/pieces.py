@@ -152,20 +152,20 @@ class Pawn(Piece):
         if takenpiece is None and oldPos[1] != newPos[1]: #this means we did en passent
             takenpiece = self.board.getPiece((self.position[0]-self.attackDir[0][0], self.position[1])) #go back/fwd to the peice that we moved behind since self.pos is already updated
             self.board.removePiece(takenpiece.position)
-        if (move[0] == self.board.getRow() - 1 and self.getColor() == "black") or (move[0] == 0 and self.getColor() == "white"):
-            self.promotion()
+        #promotion is not done here; the caller checks can_promote() and then calls promotion(choice)
         return move, takenpiece
-    def promotion(self):
+    def can_promote(self):
+        last_row = self.board.getRow() - 1 if self.getColor() == "black" else 0
+        return self.position[0] == last_row
+    def promotion(self, choice: str):
         choices = {
             "bishop": Bishop,
             "knight": Knight,
             "rook": Rook,
             "queen": Queen
         }
-        choice = input("Promote to: (bishop, knight, rook, queen): ").lower()
-        while choice not in choices:
-            print("Invalid choice, try again.")
-            choice = input("Promote to: (bishop, knight, rook, queen): ").lower()
+        if choice not in choices:
+            raise ValueError(f"Invalid promotion choice: {choice}")
         newPiece = choices[choice](self.color, self.position, self.board) #due to our init we will automatically replace our pawn
         return newPiece
     def does_move_leave_king_in_check(self, newPos: tuple):
@@ -448,29 +448,27 @@ class Checkers(Piece):
         move, takenPiece = super().move(newPos)
         if move == -1:
             return -1, None
-        if abs(newPos[0] - oldPos[0]) == 2:
+        self.just_jumped = abs(newPos[0] - oldPos[0]) == 2
+        if self.just_jumped:
             capturedPos = ((oldPos[0] + newPos[0]) // 2, (oldPos[1] + newPos[1]) // 2)
             takenPiece = self.board.removePiece(capturedPos)
-        additionalCaptures = self.get_capture_moves()
-        if additionalCaptures: #multijump
-            print("Additional jumps available:")
-            for i, pos in enumerate(additionalCaptures):
-                print(f"{i}: {pos}")
-            print("Enter -1 to end your turn.")
-            #wait for choice between left or right
-            choice = int(input("Choose your next jump: "))
-            if choice != -1:
-                if 0 <= choice < len(additionalCaptures):
-                    nextMove = list(additionalCaptures)[choice]
-
-                    # Recursively execute the next jump
-                    _, nextTakenPiece = self.move(nextMove)
-
-                    # Return the most recently captured piece
-                    return move, takenPiece
-        if (move[0] == self.board.getRow() - 1 and self.getColor() == "black") or (move[0] == 0 and self.getColor() == "white"):
-            self.promotion()
+        #multijumps and promotion are not done here: after each move the caller checks
+        #get_followup_jumps(), and calls finish_turn() once the player is done jumping
         return move, takenPiece
+
+    def get_followup_jumps(self):
+        #jumps that can continue a multijump; only possible if the last move was a jump
+        if not getattr(self, "just_jumped", False):
+            return set()
+        return self.get_capture_moves()
+
+    def finish_turn(self):
+        #ends this checker's move, promoting it if it reached the last row. Returns the piece now on the square
+        self.just_jumped = False
+        last_row = self.board.getRow() - 1 if self.getColor() == "black" else 0
+        if self.position[0] == last_row and not isinstance(self, KingChecker):
+            return self.promotion()
+        return self
 
     def does_move_leave_king_in_check(self, newPos: tuple):
         old_pos = self.getPos()

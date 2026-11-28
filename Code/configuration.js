@@ -7,7 +7,7 @@ const piece_configuration =
     rook: 5,
     queen: 9, 
   }, 
-
+};
 const budget_configuration = 
 {
   minimum: 8, 
